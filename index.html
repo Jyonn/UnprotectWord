@@ -1,0 +1,180 @@
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Word保护文档解锁工具</title>
+    <link type="text/css" href="index.css">
+</head>
+<style>
+    #files {
+        display: none;
+    }
+
+    #startProcess {
+        display: none;
+    }
+
+    #processFile {
+        color: #66b;
+        font-weight: bold;
+    }
+
+    #chooseFile {
+        display: inline;
+    }
+
+    .button-box {
+        margin: 20px 0;
+    }
+
+    .button-box button {
+        display: inline-block;
+    }
+
+    #processResult {
+        display: none;
+        padding: 20px 50px;
+        background: #e8e8e8;
+        color: #333;
+        border-radius: 5px;
+        font-size: 14px;
+    }
+
+    #processResultText {
+        display: none;
+    }
+
+    .processResultLine {
+        position: relative;
+        width: 100%;
+        border-top: 1px solid #f8f8f8f8;
+        height: 50px;
+    }
+
+    .processResultLine:first-child {
+        border-top: none;
+    }
+
+    .processResultLine span, .processResultLine a {
+        position: absolute;
+        overflow-x: scroll;
+        white-space: nowrap;
+        height: 50px;
+        line-height: 50px;
+        vertical-align: middle;
+    }
+
+    .processResultLine .filename {
+        left: 0;
+        width: 300px;
+    }
+
+    .processResultLine .message {
+        left: 350px;
+        width: 200px;
+    }
+
+    .processResultLine .message.success {
+        color: #6b6;
+    }
+
+    .processResultLine a {
+        left: 600px;
+    }
+</style>
+<body>
+    <h1>Word保护文档解锁工具</h1>
+    <h2>使用步骤</h2>
+    <ul>
+        <li>先用Word把需要解锁的文档另存为XML格式</li>
+        <li>上传XML格式的文件，并进行处理</li>
+        <li>下载处理后的文件，用Word打开，并另存为doc格式</li>
+    </ul>
+    <div class="button-box">
+        <button id="chooseFile">选择文件（可多选）</button>
+        <button id="startProcess"></button>
+    </div>
+    <input id="files" type="file" multiple onchange="fileInputChange()"/>
+    <h2 id="processResultText">处理结果</h2>
+    <div id="processResult"></div>
+</body>
+<script>
+    function template(strings, ...keys) {
+        return (function (...values) {
+            const dict = values[values.length - 1] || {};
+            const result = [strings[0]];
+            keys.forEach(function (key, i) {
+                const value = Number.isInteger(key) ? values[key] : dict[key];
+                result.push(value, strings[i + 1]);
+            });
+            return result.join('');
+        });
+    }
+
+    function stringToHtml(s) {
+        let tmp = document.createElement('div');
+        tmp.innerHTML = s;
+        return tmp.firstElementChild;
+    }
+
+    let chooseFileButton = document.getElementById('chooseFile');
+    let fileInput = document.getElementById('files');
+    let startProcessButton = document.getElementById('startProcess');
+    let processResult = document.getElementById('processResult');
+    let processResultText = document.getElementById('processResultText');
+    let resultTemplate = template`
+    <div class="processResultLine">
+        <span class="filename ${2}">${0}</span><span class="message">${1}</span>
+    </div>`;
+
+    chooseFileButton.addEventListener('click', () => {
+        fileInput.click()
+    });
+
+    function fileInputChange() {
+        let files = fileInput.files;
+        if (files.length) {
+            startProcessButton.textContent = `立即处理这${files.length}个文件`;
+            startProcessButton.style.display = 'inline-block'
+        }
+    }
+
+    startProcessButton.addEventListener('click', () => {
+        chooseFileButton.setAttribute('disabled', 'true');
+        startProcessButton.setAttribute('disabled', 'true');
+        processResult.style.display = 'block';
+        processResultText.style.display = 'block';
+        let files = fileInput.files;
+        for (let index = 0; index < files.length; index += 1) {
+            let file = files[index];
+            if (file.type === 'text/xml') {
+                const reader = new FileReader();
+                reader.readAsText(file);
+                reader.onload = function (e) {
+                    let fileString = e.target.result;
+                    if (!fileString.includes('documentProtection')) {
+                        addResult(file, '文档无需解锁', null, 'info')
+                    } else {
+                        fileString = fileString.replace(/<w:documentProtection(.*?)\/>/, '');
+                        const blob = new Blob([fileString]);
+                        let link = document.createElement('a');
+                        link.download = file.name;
+                        link.href = URL.createObjectURL(blob);
+                        link.textContent = '点击下载';
+                        addResult(file, '处理完成', link, 'success')
+                    }
+                }
+            } else {
+                addResult(file, '不是XML文件，跳过', null, 'info')
+            }
+        }
+    });
+
+    function addResult(file, msg, link = null, style = 'info') {
+        let html = stringToHtml(resultTemplate(file.name, msg, style));
+        if (link) {
+            html.appendChild(link)
+        }
+        processResult.appendChild(html)
+    }
+</script>
+</html>
